@@ -12,7 +12,7 @@ export async function processInstagramWebhook({ payload: incoming, provider, wor
   if (incoming.object !== 'instagram' || !Array.isArray(incoming.entry)) return;
   const accounts = await prisma.instagramAccount.findMany({
     where: { instagramId: { in: incoming.entry.map(e => e.id) }, provider, ...(workspaceId ? { workspaceId } : {}) },
-    select: { id: true, instagramId: true, workspaceId: true },
+    select: { id: true, instagramId: true, workspaceId: true, username: true },
   });
   const accountMap = new Map(accounts.map(a => [a.instagramId, a]));
   const allowed = new Set(accountMap.keys());
@@ -39,6 +39,16 @@ export async function processInstagramWebhook({ payload: incoming, provider, wor
     for (const event of commentEvents) {
       const account = accountMap.get(event.instagramAccountId);
       if (!account) continue;
+
+      const isSelf =
+        event.commenterId === account.instagramId ||
+        Boolean(
+          event.commenterName &&
+          account.username &&
+          event.commenterName.toLowerCase().replace(/^@/, '') ===
+            account.username.toLowerCase().replace(/^@/, '')
+        );
+      if (isSelf) continue;
 
       await queue.add(
         "process-comment",

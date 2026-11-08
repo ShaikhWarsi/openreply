@@ -322,6 +322,19 @@ async function processComment(job: Job<ProcessCommentJob>): Promise<void> {
   });
 
   for (const automation of automations) {
+    // Drop comments left by the connected account itself (e.g. public auto-replies).
+    const isSelfComment =
+      commenterId === automation.instagramAccount.instagramId ||
+      Boolean(
+        commenterName &&
+        automation.instagramAccount.username &&
+        commenterName.toLowerCase().replace(/^@/, '') ===
+          automation.instagramAccount.username.toLowerCase().replace(/^@/, '')
+      );
+    if (isSelfComment) {
+      continue;
+    }
+
     // "Any word" campaigns fire on every comment; otherwise require a keyword hit.
     const matchResult = automation.matchAnyWord
       ? { matched: true, matchedKeyword: null }
@@ -1298,6 +1311,10 @@ async function processMessage(job: Job<ProcessMessageJob>): Promise<void> {
   const dedupeId = `dm:${messageId}`;
 
   for (const automation of automations) {
+    if (senderId === automation.instagramAccount.instagramId) {
+      continue;
+    }
+
     const matchResult = automation.matchAnyWord
       ? { matched: true, matchedKeyword: null }
       : matchKeywords(

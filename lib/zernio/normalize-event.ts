@@ -30,13 +30,18 @@ export function verifyZernioSignature({ rawBody, signature, secret }: {
 }
 
 export function normalizeZernioEvent({ payload, account }: {
-  payload: unknown; account: { zernioAccountId: string | null; instagramId: string };
+  payload: unknown; account: { zernioAccountId: string | null; instagramId: string; username?: string | null };
 }): InstagramPayload | null {
   const parsed = envelopeSchema.safeParse(payload);
   if (!parsed.success || parsed.data.account.id !== account.zernioAccountId) return null;
   const { event, comment, message, metadata, conversation, statusAt } = parsed.data;
   const entry: InstagramPayload['entry'][number] = { id: account.instagramId, time: Date.now() };
   if (event === 'comment.received' && comment) {
+    const authorName = comment.author.username?.toLowerCase().replace(/^@/, '');
+    const accountName = account.username?.toLowerCase().replace(/^@/, '');
+    if (comment.author.id === account.instagramId || (authorName && accountName && authorName === accountName)) {
+      return null;
+    }
     entry.changes = [{ field: 'comments', value: { id: comment.id, text: comment.text, from: comment.author, media: { id: comment.platformPostId } } }];
   } else if (event === 'message.received' && message?.direction === 'incoming') {
     const sender = { id: message.sender.id };
